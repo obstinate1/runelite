@@ -127,18 +127,37 @@ public class DamageBreakpointsPlugin extends Plugin
     }
 
     private void calculateMaxHit() {
-        boolean weaponIsRanged = isRangedWeapon();
+        // 1. Update the Stats Table (Additive)
+        int currentMeleeStr = getMeleeStrBonusFromSnapshot();
+        int currentRangedStr = getRangedStrBonusFromSnapshot();
+        panel.updateStat("Melee Str", "+" + currentMeleeStr);
+        panel.updateStat("Ranged Str", "+" + currentRangedStr);
 
-        // Determine Mode
-        boolean isRangedMode;
+        // 2. Identify the Multiplier Text (Dynamic)
+        String multiStr = "1.00x";
 
-        if (!panel.selectedRangePrayer.equals("None")) {
-            isRangedMode = true; // Ranged prayer forces Ranged math
-        } else if (!panel.selectedMeleePrayer.equals("None")) {
-            isRangedMode = false; // Melee prayer forces Melee math
-        } else {
-            isRangedMode = weaponIsRanged; // No prayer? Default to the weapon type
+        // Check for Level Multipliers (Void)
+        if (panel.specialToggles.getOrDefault("VoidMelee", false)) multiStr = "Void";
+        else if (panel.specialToggles.getOrDefault("VoidRange", false)) multiStr = "Elite Void";
+
+        // Check for Damage Multipliers (Slayer/Salve)
+        if (panel.specialToggles.getOrDefault("Salve", false)) {
+            multiStr = (multiStr.equals("1.00x") ? "" : multiStr + " + ") + "Salve (ei)";
+        } else if (panel.specialToggles.getOrDefault("Slayer", false)) {
+            multiStr = (multiStr.equals("1.00x") ? "" : multiStr + " + ") + "Slayer";
         }
+
+        // Check for Revenant
+        if (panel.specialToggles.getOrDefault("Revenant", false)) {
+            multiStr = (multiStr.equals("1.00x") ? "" : multiStr + " + ") + "Rev";
+        }
+
+        panel.updateStat("Gear Multi", multiStr);
+
+        // 3. Smart Switch Logic
+        boolean weaponIsRanged = isRangedWeapon();
+        boolean isRangedMode = !panel.selectedRangePrayer.equals("None") ||
+                (weaponIsRanged && panel.selectedMeleePrayer.equals("None"));
 
         if (isRangedMode) {
             calculateRangedMaxHit();
@@ -147,72 +166,92 @@ public class DamageBreakpointsPlugin extends Plugin
         }
     }
 
-
-
     private void calculateMeleeMaxHit() {
         int strengthLevel = applyPotionBoost(client.getRealSkillLevel(Skill.STRENGTH), Skill.STRENGTH);
-        double prayerMult = getPrayerMultiplier();
+        double prayer = getPrayerMultiplier();
+        int effectiveStr = (int) (Math.floor(strengthLevel * prayer) + panel.combatStyleBonus + 8);
 
-        // Melee Effective Strength
-        int effectiveStr = (int) (Math.floor(strengthLevel * prayerMult) + panel.combatStyleBonus + 8);
+        double multi = 1.0;
+
+        // Standard Void Melee (1.10x)
         if (panel.specialToggles.getOrDefault("VoidMelee", false)) {
             effectiveStr = (int) Math.floor(effectiveStr * 1.10);
+            multi *= 1.10;
         }
 
         double baseMax = 0.5 + (effectiveStr * (lastSnapshottedGearBonus + 64) / 640.0);
-        int currentMax = (int) Math.floor(baseMax);
+        int flooredBase = (int) Math.floor(baseMax);
 
-        // Multipliers (Priority: Salve > Slayer)
+        // Final Damage Multipliers
+        int finalMax = flooredBase;
         if (panel.specialToggles.getOrDefault("Salve", false)) {
-            currentMax = (int) Math.floor(currentMax * 1.20);
+            finalMax = (int) Math.floor(finalMax * 1.20);
+            multi *= 1.20;
         } else if (panel.specialToggles.getOrDefault("Slayer", false)) {
-            currentMax = (int) Math.floor(currentMax * (7.0 / 6.0));
+            finalMax = (int) Math.floor(finalMax * (7.0 / 6.0));
+            multi *= (7.0 / 6.0);
         }
 
         if (panel.specialToggles.getOrDefault("Revenant", false)) {
-            currentMax = (int) Math.floor(currentMax * 1.50);
+            finalMax = (int) Math.floor(finalMax * 1.50);
+            multi *= 1.50;
         }
 
-        panel.setMaxHit(String.valueOf(currentMax));
+        panel.updateStat("Gear Multi", String.format("%.2fx", multi));
+        panel.setMaxHit("Melee", String.valueOf(finalMax));
     }
 
     private void calculateRangedMaxHit() {
         int rangedLevel = applyPotionBoost(client.getRealSkillLevel(Skill.RANGED), Skill.RANGED);
+        double prayer = getRangedPrayerMultiplier();
 
-        double prayerMult = 1.0;
-        String p = panel.selectedRangePrayer;
-        if (p.equals("Rigour")) prayerMult = 1.23;
-        else if (p.equals("Deadeye")) prayerMult = 1.20;
-        else if (p.equals("EagleEye")) prayerMult = 1.15;
+        // 1. Base Effective Ranged Strength
+        int effectiveRangeStr = (int) (Math.floor(rangedLevel * prayer) + 8);
 
-        // Ranged Effective Strength
-        int effectiveRangeStr = (int) (Math.floor(rangedLevel * prayerMult) + 8);
+        double voidMulti = 1.0;
+
+        // 2. SMART VOID LOGIC:
+        // If Ranged Helm is on -> 1.125x (Elite Tier)
         if (panel.specialToggles.getOrDefault("VoidRange", false)) {
-            effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.125); // Elite Void Range
+            effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.125);
+            voidMulti = 1.125;
+        }
+        // Else if Melee Helm is on -> 1.10x (Standard Tier)
+        else if (panel.specialToggles.getOrDefault("VoidMelee", false)) {
+            effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.10);
+            voidMulti = 1.10;
         }
 
-        // Get Ranged Strength from gear (Rstr)
-        int rangedStrBonus = getRangedStrBonusFromSnapshot();
+        // 3. Base Max Hit Calculation
+        int rStrBonus = getRangedStrBonusFromSnapshot();
+        double baseMax = 0.5 + (effectiveRangeStr * (rStrBonus + 64) / 640.0);
+        int flooredBase = (int) Math.floor(baseMax);
 
-        double maxHit = 0.5 + (effectiveRangeStr * (rangedStrBonus + 64) / 640.0);
-        int currentMax = (int) Math.floor(maxHit);
+        // 4. Final Damage Multipliers
+        int finalMax = flooredBase;
+        double damageMulti = 1.0;
 
-        // Multipliers (Same priority)
         if (panel.specialToggles.getOrDefault("Salve", false)) {
-            currentMax = (int) Math.floor(currentMax * 1.20);
+            finalMax = (int) Math.floor(finalMax * 1.20);
+            damageMulti *= 1.20;
         } else if (panel.specialToggles.getOrDefault("Slayer", false)) {
-            currentMax = (int) Math.floor(currentMax * (7.0 / 6.0));
+            finalMax = (int) Math.floor(finalMax * (7.0 / 6.0));
+            damageMulti *= (7.0 / 6.0);
         }
 
         if (panel.specialToggles.getOrDefault("Revenant", false)) {
-            currentMax = (int) Math.floor(currentMax * 1.50);
+            finalMax = (int) Math.floor(finalMax * 1.50);
+            damageMulti *= 1.50;
         }
 
-        panel.setMaxHit(String.valueOf(currentMax));
+        // 5. Total Gear Multiplier (Void * Damage Multipliers)
+        double totalGearMulti = voidMulti * damageMulti;
+
+        panel.updateStat("Gear Multi", String.format("%.2fx", totalGearMulti));
+        panel.setMaxHit("Ranged", String.valueOf(finalMax));
     }
 
-
-    private int getRangedStrBonusFromSnapshot() {
+private int getRangedStrBonusFromSnapshot() {
         int total = 0;
         ItemContainer equip = client.getItemContainer(InventoryID.EQUIPMENT);
         if (equip == null) return 0;
@@ -222,6 +261,23 @@ public class DamageBreakpointsPlugin extends Plugin
                 net.runelite.http.api.item.ItemStats stats = itemManager.getItemStats(item.getId(), false);
                 if (stats != null && stats.getEquipment() != null) {
                     total += stats.getEquipment().getRstr();
+                }
+            }
+        }
+        return total;
+    }
+
+    private int getMeleeStrBonusFromSnapshot() {
+        int total = 0;
+        ItemContainer equip = client.getItemContainer(InventoryID.EQUIPMENT);
+        if (equip == null) return 0;
+
+        for (Item item : equip.getItems()) {
+            if (item != null && item.getId() != -1) {
+                net.runelite.http.api.item.ItemStats stats = itemManager.getItemStats(item.getId(), false);
+                if (stats != null && stats.getEquipment() != null) {
+                    // 'str' is the internal RuneLite name for Melee Strength
+                    total += stats.getEquipment().getStr();
                 }
             }
         }
@@ -256,6 +312,19 @@ public class DamageBreakpointsPlugin extends Plugin
     private double getPrayerMultiplier() {
         switch (panel.selectedMeleePrayer) {
             case "Piety": return 1.23; case "Chivalry": return 1.18; case "Ultimate": return 1.15; default: return 1.0;
+        }
+    }
+
+    private double getRangedPrayerMultiplier()
+    {
+        switch (panel.selectedRangePrayer)
+        {
+            case "Rigour": return 1.23;
+            case "Deadeye": return 1.20;
+            case "EagleEye": return 1.15;
+            case "HawkEye": return 1.10;
+            case "SharpEye": return 1.05;
+            default: return 1.0;
         }
     }
 

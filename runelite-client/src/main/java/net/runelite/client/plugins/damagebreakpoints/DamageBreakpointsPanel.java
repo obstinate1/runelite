@@ -26,6 +26,7 @@ public class DamageBreakpointsPanel extends PluginPanel
     private Runnable updateCallback, snapshotCallback;
 
     public final Map<String, Boolean> activePotions = new HashMap<>();
+    private final Map<String, JLabel> statLabels = new HashMap<>();
 
     public DamageBreakpointsPanel() {
         super();
@@ -46,7 +47,28 @@ public class DamageBreakpointsPanel extends PluginPanel
             equipGrid.add(l, gbc);
         }
         container.add(equipGrid);
-        container.add(Box.createRigidArea(new Dimension(0, 15)));
+        container.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        JPanel statsPanel = new JPanel(new GridLayout(3, 2, 5, 2));
+        statsPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        statsPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
+
+        String[] stats = {"Melee Str", "Ranged Str", "Gear Multi"};
+        for (String stat : stats) {
+            JLabel label = new JLabel(stat + ":");
+            label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+            label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            statsPanel.add(label);
+
+            JLabel value = new JLabel("0", SwingConstants.RIGHT);
+            value.setForeground(Color.CYAN);
+            value.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            statLabels.put(stat, value);
+            statsPanel.add(value);
+        }
+
+        container.add(statsPanel);
+        container.add(Box.createRigidArea(new Dimension(0, 10)));
 
         // --- 2. Toggles Row (Slayer/Void/Salve) ---
         JPanel toggleRow = new JPanel(new GridLayout(1, 5, 4, 0));
@@ -63,7 +85,7 @@ public class DamageBreakpointsPanel extends PluginPanel
         potRow.add(createPotionButton("Strength")); potRow.add(createPotionButton("SuperStr"));
         potRow.add(createPotionButton("Ranging")); potRow.add(createPotionButton("Overload")); potRow.add(createPotionButton("Salts"));
         container.add(potRow);
-        container.add(Box.createRigidArea(new Dimension(0, 15)));
+        container.add(Box.createRigidArea(new Dimension(0, 10)));
 
         // --- 4. Style & Prayers ---
         JPanel styleRow = new JPanel(new GridLayout(1, 3, 5, 0));
@@ -77,9 +99,8 @@ public class DamageBreakpointsPanel extends PluginPanel
         container.add(createIconRow(new String[]{"SharpEye", "HawkEye", "EagleEye", "Deadeye", "Rigour"}, "RangePrayer"));
         container.add(createIconRow(new String[]{"Lore", "Might", "Vigour", "Augury"}, "MagePrayer"));
 
-
-        // --- 5. Action & Result ---
-        container.add(Box.createRigidArea(new Dimension(0, 15)));
+        // --- 5. Snapshot Button ---
+        container.add(Box.createRigidArea(new Dimension(0, 10)));
         snapshotButton.setAlignmentX(CENTER_ALIGNMENT);
         snapshotButton.addActionListener(e -> { if(snapshotCallback != null) snapshotCallback.run(); });
         container.add(snapshotButton);
@@ -139,6 +160,12 @@ public class DamageBreakpointsPanel extends PluginPanel
         return b;
     }
 
+    public void updateStat(String key, String val) {
+        SwingUtilities.invokeLater(() -> {
+            JLabel l = statLabels.get(key);
+            if (l != null) l.setText(val);
+        });
+    }
 
 
     private JButton createBaseToggle() {
@@ -201,7 +228,17 @@ public class DamageBreakpointsPanel extends PluginPanel
     public void setIcon(String name, BufferedImage img) { SwingUtilities.invokeLater(() -> { JButton b = iconButtons.get(name); if(b != null) b.setIcon(new ImageIcon(img)); }); }
     public void setEmptySprite(int id, BufferedImage img) { if(img != null) emptySilhouettes.put(id, new ImageIcon(img)); }
     public void updateEquipSlot(int id, BufferedImage img, String n) { SwingUtilities.invokeLater(() -> { JLabel l = equipLabels.get(id); if(l != null) l.setIcon(img != null ? new ImageIcon(img) : emptySilhouettes.get(id)); }); }
-    public void setMaxHit(String h) { SwingUtilities.invokeLater(() -> maxHitDisplay.setText("Max Hit: " + h)); }
+    public void setMaxHit(String mode, String hit) {
+        SwingUtilities.invokeLater(() -> {
+            // This combines them into one line: "Melee Max Hit: 42"
+            maxHitDisplay.setText(mode + " Max Hit: " + hit);
+
+            // Refresh the UI to fit the new text length
+            maxHitDisplay.revalidate();
+            maxHitDisplay.repaint();
+        });
+    }
+
     public void onUpdate(Runnable cb) { this.updateCallback = cb; }
     public void onSnapshot(Runnable cb) { this.snapshotCallback = cb; }
     private void trigger() { if(updateCallback != null) updateCallback.run(); }

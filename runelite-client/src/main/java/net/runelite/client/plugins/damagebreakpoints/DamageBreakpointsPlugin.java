@@ -204,54 +204,59 @@ public class DamageBreakpointsPlugin extends Plugin
     private void calculateRangedMaxHit() {
         int rangedLevel = applyPotionBoost(client.getRealSkillLevel(Skill.RANGED), Skill.RANGED);
         double prayer = getRangedPrayerMultiplier();
-
-        // 1. Base Effective Ranged Strength
         int effectiveRangeStr = (int) (Math.floor(rangedLevel * prayer) + 8);
 
+        // --- 1. Level Multipliers (Void) ---
         double voidMulti = 1.0;
-
-        // 2. SMART VOID LOGIC:
-        // If Ranged Helm is on -> 1.125x (Elite Tier)
         if (panel.specialToggles.getOrDefault("VoidRange", false)) {
             effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.125);
             voidMulti = 1.125;
-        }
-        // Else if Melee Helm is on -> 1.10x (Standard Tier)
-        else if (panel.specialToggles.getOrDefault("VoidMelee", false)) {
+        } else if (panel.specialToggles.getOrDefault("VoidMelee", false)) {
             effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.10);
             voidMulti = 1.10;
         }
 
-        // 3. Base Max Hit Calculation
         int rStrBonus = getRangedStrBonusFromSnapshot();
         double baseMax = 0.5 + (effectiveRangeStr * (rStrBonus + 64) / 640.0);
-        int flooredBase = (int) Math.floor(baseMax);
+        int currentMax = (int) Math.floor(baseMax);
 
-        // 4. Final Damage Multipliers
-        int finalMax = flooredBase;
+        // --- 2. Final Damage Multipliers (Crystal, Salve, Slayer, Rev) ---
         double damageMulti = 1.0;
 
+        // CRYSTAL SET LOGIC: Checks if using a Crystal Weapon + Armor pieces
+        if (isUsingCrystalWeapon()) {
+            double crystalBonus = 1.0;
+            if (hasCrystalPiece(ItemID.CRYSTAL_HELM)) crystalBonus += 0.03;
+            if (hasCrystalPiece(ItemID.CRYSTAL_BODY)) crystalBonus += 0.03;
+            if (hasCrystalPiece(ItemID.CRYSTAL_LEGS)) crystalBonus += 0.03;
+
+            // If the full set is worn, the total bonus jumps to 15% instead of 9%
+            if (crystalBonus == 1.09) crystalBonus = 1.15;
+
+            currentMax = (int) Math.floor(currentMax * crystalBonus);
+            damageMulti *= crystalBonus;
+        }
+
+        // Salve/Slayer Priority
         if (panel.specialToggles.getOrDefault("Salve", false)) {
-            finalMax = (int) Math.floor(finalMax * 1.20);
+            currentMax = (int) Math.floor(currentMax * 1.20);
             damageMulti *= 1.20;
         } else if (panel.specialToggles.getOrDefault("Slayer", false)) {
-            finalMax = (int) Math.floor(finalMax * (7.0 / 6.0));
+            currentMax = (int) Math.floor(currentMax * (7.0 / 6.0));
             damageMulti *= (7.0 / 6.0);
         }
 
         if (panel.specialToggles.getOrDefault("Revenant", false)) {
-            finalMax = (int) Math.floor(finalMax * 1.50);
+            currentMax = (int) Math.floor(currentMax * 1.50);
             damageMulti *= 1.50;
         }
 
-        // 5. Total Gear Multiplier (Void * Damage Multipliers)
-        double totalGearMulti = voidMulti * damageMulti;
-
-        panel.updateStat("Gear Multi", String.format("%.2fx", totalGearMulti));
-        panel.setMaxHit("Ranged", String.valueOf(finalMax));
+        panel.updateStat("Gear Multi", String.format("%.2fx", voidMulti * damageMulti));
+        panel.setMaxHit("Ranged", String.valueOf(currentMax));
     }
 
-private int getRangedStrBonusFromSnapshot() {
+
+    private int getRangedStrBonusFromSnapshot() {
         int total = 0;
         ItemContainer equip = client.getItemContainer(InventoryID.EQUIPMENT);
         if (equip == null) return 0;
@@ -311,7 +316,7 @@ private int getRangedStrBonusFromSnapshot() {
 
     private double getPrayerMultiplier() {
         switch (panel.selectedMeleePrayer) {
-            case "Piety": return 1.23; case "Chivalry": return 1.18; case "Ultimate": return 1.15; default: return 1.0;
+            case "Piety": return 1.23; case "Chivalry": return 1.18; case "Ultimate": return 1.15; case "Superhuman": return 1.10; case "Burst": return 1.05; default: return 1.0;
         }
     }
 
@@ -320,7 +325,7 @@ private int getRangedStrBonusFromSnapshot() {
         switch (panel.selectedRangePrayer)
         {
             case "Rigour": return 1.23;
-            case "Deadeye": return 1.20;
+            case "Deadeye": return 1.18;
             case "EagleEye": return 1.15;
             case "HawkEye": return 1.10;
             case "SharpEye": return 1.05;
@@ -361,6 +366,23 @@ private int getRangedStrBonusFromSnapshot() {
                 name.contains("atlatl") ||
                 name.contains("thrown") ||
                 name.contains("javelin");
+    }
+
+    private boolean isUsingCrystalWeapon() {
+        ItemContainer equip = client.getItemContainer(InventoryID.EQUIPMENT);
+        if (equip == null) return false;
+        Item weapon = equip.getItem(3);
+        if (weapon == null) return false;
+
+        int id = weapon.getId();
+        // BOFA or standard Crystal Bows
+        return id == ItemID.BOW_OF_FAERDHINEN || id == ItemID.BOW_OF_FAERDHINEN_C ||
+                (id >= 851 && id <= 861) || id == 4212;
+    }
+
+    private boolean hasCrystalPiece(int itemId) {
+        ItemContainer equip = client.getItemContainer(InventoryID.EQUIPMENT);
+        return equip != null && equip.contains(itemId);
     }
 
 

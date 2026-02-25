@@ -85,8 +85,8 @@ public class DamageBreakpointsPlugin extends Plugin
         // 3. Item Toggles
         Map.ofEntries(
                 Map.entry("Slayer", ItemID.SLAYER_HELMET),
-                Map.entry("VoidMelee", ItemID.VOID_MELEE_HELM),
-                Map.entry("VoidRange", ItemID.VOID_RANGER_HELM),
+                Map.entry("Void", ItemID.VOID_KNIGHT_TOP),
+                Map.entry("EliteVoid", ItemID.ELITE_VOID_TOP),
                 Map.entry("Salve", ItemID.SALVE_AMULETEI),
                 Map.entry("Revenant", ItemID.CRAWS_BOW),
                 Map.entry("Strength", ItemID.STRENGTH_POTION4),
@@ -137,8 +137,8 @@ public class DamageBreakpointsPlugin extends Plugin
         String multiStr = "1.00x";
 
         // Check for Level Multipliers (Void)
-        if (panel.specialToggles.getOrDefault("VoidMelee", false)) multiStr = "Void";
-        else if (panel.specialToggles.getOrDefault("VoidRange", false)) multiStr = "Elite Void";
+        if (panel.specialToggles.getOrDefault("Void", false)) multiStr = "Void";
+        else if (panel.specialToggles.getOrDefault("EliteVoid", false)) multiStr = "Elite Void";
 
         // Check for Damage Multipliers (Slayer/Salve)
         if (panel.specialToggles.getOrDefault("Salve", false)) {
@@ -174,7 +174,7 @@ public class DamageBreakpointsPlugin extends Plugin
         double multi = 1.0;
 
         // Standard Void Melee (1.10x)
-        if (panel.specialToggles.getOrDefault("VoidMelee", false)) {
+        if (panel.specialToggles.getOrDefault("Void", false)) {
             effectiveStr = (int) Math.floor(effectiveStr * 1.10);
             multi *= 1.10;
         }
@@ -208,10 +208,10 @@ public class DamageBreakpointsPlugin extends Plugin
 
         // --- 1. Level Multipliers (Void) ---
         double voidMulti = 1.0;
-        if (panel.specialToggles.getOrDefault("VoidRange", false)) {
+        if (panel.specialToggles.getOrDefault("EliteVoid", false)) {
             effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.125);
             voidMulti = 1.125;
-        } else if (panel.specialToggles.getOrDefault("VoidMelee", false)) {
+        } else if (panel.specialToggles.getOrDefault("Void", false)) {
             effectiveRangeStr = (int) Math.floor(effectiveRangeStr * 1.10);
             voidMulti = 1.10;
         }

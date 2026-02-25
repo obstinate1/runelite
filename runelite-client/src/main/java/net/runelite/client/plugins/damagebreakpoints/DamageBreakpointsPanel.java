@@ -73,8 +73,8 @@ public class DamageBreakpointsPanel extends PluginPanel
         // --- 2. Toggles Row (Slayer/Void/Salve) ---
         JPanel toggleRow = new JPanel(new GridLayout(1, 5, 4, 0));
         toggleRow.add(createItemToggle("Slayer", "HelmGroup"));
-        toggleRow.add(createItemToggle("VoidMelee", "HelmGroup"));
-        toggleRow.add(createItemToggle("VoidRange", "HelmGroup"));
+        toggleRow.add(createItemToggle("Void", "HelmGroup"));
+        toggleRow.add(createItemToggle("EliteVoid", "HelmGroup"));
         toggleRow.add(createItemToggle("Salve", "Independent"));
         toggleRow.add(createItemToggle("Revenant", "Independent"));
         container.add(toggleRow);
@@ -119,7 +119,7 @@ public class DamageBreakpointsPanel extends PluginPanel
         itemButtons.put(name, b);
         b.addActionListener(e -> {
             boolean was = specialToggles.getOrDefault(name, false);
-            if (group.equals("HelmGroup")) { specialToggles.put("Slayer", false); specialToggles.put("VoidMelee", false); specialToggles.put("VoidRange", false); }
+            if (group.equals("HelmGroup")) { specialToggles.put("Slayer", false); specialToggles.put("Void", false); specialToggles.put("EliteVoid", false); }
             specialToggles.put(name, !was);
             updateVisuals(); trigger();
         });
@@ -201,7 +201,7 @@ public class DamageBreakpointsPanel extends PluginPanel
     }
 
 
-    private void selectIcon(String type, String name) {
+    private void selectPrayer(String type, String name) {
         // Check if the clicked prayer is already the active one
         boolean isCurrentlyActive = name.equals(selectedMeleePrayer) ||
                 name.equals(selectedRangePrayer) ||
@@ -251,7 +251,7 @@ public class DamageBreakpointsPanel extends PluginPanel
             JButton b = new JButton();
             b.setPreferredSize(new Dimension(30, 30));
             b.setBackground(ColorScheme.DARK_GRAY_COLOR);
-            b.addActionListener(e -> selectIcon(type, s)); // Calls the smarter toggle
+            b.addActionListener(e -> selectPrayer(type, s)); // Calls the smarter toggle
             iconButtons.put(s, b);
             row.add(b);
         }
